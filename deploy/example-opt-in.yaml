@@ -1,0 +1,32 @@
+# An example workload that opts in. Two things make it reapable:
+#   1. the label idle-reaper.io/enabled=true
+#   2. a query annotation that returns one number, where <= threshold means idle
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jupyter-gpu
+  namespace: ml-sandbox
+  labels:
+    idle-reaper.io/enabled: "true"
+  annotations:
+    # no HTTP requests to this notebook in the last hour
+    idle-reaper.io/query: 'sum(rate(nginx_ingress_controller_requests{exported_namespace="ml-sandbox",exported_service="jupyter-gpu"}[1h]))'
+    idle-reaper.io/threshold: "0"
+    # sandbox stuff gets a shorter leash than the 48h default
+    idle-reaper.io/grace: "12h"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jupyter-gpu
+  template:
+    metadata:
+      labels:
+        app: jupyter-gpu
+    spec:
+      containers:
+        - name: notebook
+          image: quay.io/jupyter/pytorch-notebook:2024-10-07
+          resources:
+            limits:
+              nvidia.com/gpu: 1
